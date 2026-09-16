@@ -55,6 +55,23 @@ describe( 'Guards', function ()
 		LIB_ASSERT.strictEqual( Guards.SenderAllowed( UI, 'about:blank' ), false );
 	} );
 
+
+	it( 'treats the app s own start page as one page, not a place to move about in', function ()
+	{
+		let start = 'file:///W:/jsonx-desktop.git/main/start.html';
+		LIB_ASSERT.strictEqual( Guards.SenderAllowed( start, start ), true );
+		LIB_ASSERT.strictEqual( Guards.AllowNavigation( start, start + '#recent' ), true );
+		// Windows paths are written both ways and in either case; the same file is the same page.
+		LIB_ASSERT.strictEqual( Guards.SenderAllowed( start, 'file:///w:/JSONX-DESKTOP.GIT/main/start.html' ), true );
+		// Anything else in the app's own folder is not the start page.
+		LIB_ASSERT.strictEqual( Guards.SenderAllowed( start, 'file:///W:/jsonx-desktop.git/main/main.js' ), false );
+		LIB_ASSERT.strictEqual( Guards.AllowNavigation( start, 'file:///C:/windows/system32/drivers/etc/hosts' ), false );
+		LIB_ASSERT.strictEqual( Guards.AllowNavigation( start, 'https://example.com/' ), false );
+		// A served page is never the start page, and the start page is never a served one.
+		LIB_ASSERT.strictEqual( Guards.SenderAllowed( start, UI ), false );
+		LIB_ASSERT.strictEqual( Guards.SenderAllowed( UI, start ), false );
+	} );
+
 } );
 
 

@@ -74,18 +74,53 @@ describe( 'The app', function ()
 
 	it( 'hands the page a desktop host, and the page follows what it lists', async function ()
 	{
-		let host = await page.Evaluate( '( function () { let h = window.JsonxHost; return { Kind: h.Kind, Capabilities: h.Capabilities(), HasOpenFile: typeof h.OpenFile } } )()' );
+		let host = await page.Evaluate( '( function () { let h = window.JsonxHost; return { Kind: h.Kind, Capabilities: h.Capabilities(), HasTerminal: typeof h.OpenTerminal } } )()' );
 		LIB_ASSERT.strictEqual( host.Kind, 'desktop' );
-		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText' ] );
-		LIB_ASSERT.strictEqual( host.HasOpenFile, 'undefined' );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'OpenPath', 'RecentFiles' ] );
+		// Step 4 adds the terminal; until then the page shows no button for it.
+		LIB_ASSERT.strictEqual( host.HasTerminal, 'undefined' );
 
 		// A capability the host has reaches the main process and is answered.
 		let copied = await page.Evaluate( 'window.JsonxHost.CopyText( "from the desktop" )' );
 		LIB_ASSERT.strictEqual( copied, true );
 
-		// The page shows a control only for what the host lists: step 3 adds these two.
-		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-file" ) === null' ), true );
+		// The page shows a control for what the host lists, and none for what it does not.
+		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-file" ) !== null' ), true );
 		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-terminal" ) === null' ), true );
+
+		// The file it opened is in the recent list, and the list says it is open now.
+		let recent = await page.Evaluate( 'window.JsonxHost.RecentFiles()' );
+		LIB_ASSERT.strictEqual( recent.length, 1 );
+		LIB_ASSERT.strictEqual( recent[ 0 ].Path, file );
+		LIB_ASSERT.match( recent[ 0 ].Ui, /^http:\/\/127\.0\.0\.1:\d+\/ui\// );
+	} );
+
+
+	it( 'shows the start window when it is started with no file, and opens a file from it', async function ()
+	{
+		// Its own instance, with its own settings, so the recent list is this test's.
+		let second = await Cdp.StartApp( { Args: [] } );
+		try
+		{
+			let start = await second.AttachToPage( 'start.html' );
+			await start.WaitFor( 'document.getElementById( "open" ) !== null' );
+
+			// With nothing opened yet, it says so.
+			LIB_ASSERT.strictEqual( await start.Evaluate( 'document.getElementById( "none" ).hidden' ), false );
+			LIB_ASSERT.deepStrictEqual( start.Errors, [] );
+
+			/*
+				***The answer to this call is never waited for***: opening a file closes the start window,
+				and an evaluation in a page which goes never answers - which hung the whole suite until it
+				was found (2026-09-16). What it did is visible in the window it opened.
+			*/
+			await start.Evaluate( 'window.JsonxHost.OpenPath( ' + JSON.stringify( file ) + ' ); true' );
+
+			let file_page = await second.AttachToPage( '/ui/' );
+			await file_page.WaitFor( 'document.body.innerText.includes( "Bookings" )' );
+			LIB_ASSERT.deepStrictEqual( file_page.Errors, [] );
+		}
+		finally { await second.Stop(); }
 	} );
 
 

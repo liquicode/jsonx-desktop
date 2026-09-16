@@ -109,6 +109,73 @@ function NewHost( Options )
 
 
 	//---------------------------------------------------------------------
+	// Asks the person for a .jsonx file and opens it in its own process. Cancelled is null.
+
+	if ( options.Dialog && typeof options.OpenPath === 'function' )
+	{
+		host.OpenFile = async function ()
+		{
+			let request = {
+				title: 'Open a jsonx file',
+				properties: [ 'openFile' ],
+				filters: [
+					{ name: 'jsonx files', extensions: [ 'jsonx' ] },
+					{ name: 'All files', extensions: [ '*' ] },
+				],
+			};
+			let chosen = null;
+			try
+			{
+				let window_ = ( typeof options.WindowFor === 'function' ) ? options.WindowFor() : null;
+				chosen = window_
+					? await options.Dialog.showOpenDialog( window_, request )
+					: await options.Dialog.showOpenDialog( request );
+			}
+			catch ( error ) { return null; }
+			if ( !chosen || chosen.canceled || !chosen.filePaths || chosen.filePaths.length === 0 ) { return null; }
+
+			// Opening says what went wrong itself, in front of the person; the page hears null.
+			try { return await options.OpenPath( chosen.filePaths[ 0 ] ); }
+			catch ( error ) { return null; }
+		};
+	}
+
+
+	//---------------------------------------------------------------------
+	// Opens a file the host already knows of: one from RecentFiles, or one the menu names.
+
+	if ( typeof options.OpenPath === 'function' )
+	{
+		host.OpenPath = async function ( Path )
+		{
+			try { return await options.OpenPath( Path ); }
+			catch ( error ) { return null; }
+		};
+	}
+
+
+	//---------------------------------------------------------------------
+	// The files opened lately, newest first, each with the address of its Web UI when it is open now.
+
+	if ( typeof options.RecentList === 'function' )
+	{
+		host.RecentFiles = async function ()
+		{
+			let list = [];
+			try { list = await options.RecentList(); }
+			catch ( error ) { return []; }
+			return ( list || [] ).map( function ( Each )
+			{
+				let file = { Path: Each.Path };
+				let ui = ( typeof options.UiFor === 'function' ) ? options.UiFor( Each.Path ) : null;
+				if ( ui ) { file.Ui = ui; }
+				return file;
+			} );
+		};
+	}
+
+
+	//---------------------------------------------------------------------
 	// The names the page may show a control for: every capability this host was given.
 
 	host.Capabilities = function ()

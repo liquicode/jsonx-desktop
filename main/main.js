@@ -8,18 +8,27 @@
 	***A window is a file's own Web UI***, served by that file's `jsonx` process (decision 10). Closing a
 	window stops its process; closing the last window quits.
 
-	Step 3 adds opening files, recent files, the menu and the start window; step 4 the terminal.
+	***One instance runs*** (step 3): a second one, started by opening a file, hands its command line to the
+	first and stops, so a file opened twice is one process and one window.
+
+	Step 4 adds the terminal.
 */
 
 const LIB_CHILD_PROCESS = require( 'child_process' );
 const LIB_PATH = require( 'path' );
-const { app, BrowserWindow, Notification, clipboard, dialog, ipcMain, shell } = require( 'electron' );
+const { app, BrowserWindow, Menu, Notification, clipboard, dialog, ipcMain, shell } = require( 'electron' );
 
 const Processes = require( '../src/Processes.js' );
 const Host = require( '../src/Host.js' );
 const Guards = require( '../src/Guards.js' );
 const Args = require( '../src/Args.js' );
+const Recent = require( '../src/Recent.js' );
+const MenuTemplate = require( '../src/Menu.js' );
 const Preload = require( './preload.js' );
+
+
+const HOMEPAGE = 'http://jsonx.liquicode.com';
+const START_PAGE = LIB_PATH.join( __dirname, 'start.html' );
 
 
 //---------------------------------------------------------------------
@@ -29,6 +38,8 @@ let processes = Processes.NewProcesses( {
 	ExecPath: process.execPath,
 	OnExit: function ( Path, Code, Stderr ) { report_stopped( Path, Code, Stderr ); },
 } );
+
+let recent = null;
 
 // The file each window shows, and the address it was opened at: by the window's id.
 let windows = new Map();
@@ -42,6 +53,20 @@ function window_entry( Window )
 
 
 //---------------------------------------------------------------------
+// The window already showing a file, if there is one.
+
+function window_for_path( Path )
+{
+	let found = null;
+	windows.forEach( function ( Entry, Id )
+	{
+		if ( Entry.Path === LIB_PATH.resolve( Path ) ) { found = BrowserWindow.fromId( Id ); }
+	} );
+	return found;
+}
+
+
+//---------------------------------------------------------------------
 function host_for( Window )
 {
 	return Host.NewHost( {
@@ -49,7 +74,45 @@ function host_for( Window )
 		Clipboard: clipboard,
 		Dialog: dialog,
 		WindowFor: function () { return Window; },
+		OpenPath: async function ( Path ) { return await OpenPath( Path ); },
+		RecentList: function () { return recent ? recent.List() : []; },
+		UiFor: function ( Path ) { let ready = processes.Lookup( Path ); return ready ? ready.Ui : null; },
 	} );
+}
+
+
+//---------------------------------------------------------------------
+// Opens a file, or brings its window forward when it is open already. Says what went wrong, and answers
+// what the page's host interface promises: { Path, Ui }, or null.
+
+async function OpenPath( Path )
+{
+	let path = LIB_PATH.resolve( Path );
+	let open_already = window_for_path( path );
+	if ( open_already )
+	{
+		open_already.show();
+		open_already.focus();
+		let ready = processes.Lookup( path );
+		return { Path: path, Ui: ready ? ready.Ui : undefined };
+	}
+
+	let window_ = null;
+	try { window_ = await OpenWindow( path ); }
+	catch ( error )
+	{
+		dialog.showMessageBox( {
+			type: 'error',
+			title: 'jsonx',
+			message: 'Cannot open ' + LIB_PATH.basename( path ) + '.',
+			detail: ( error.Stderr || error.message || '' ).trim(),
+		} );
+		return null;
+	}
+
+	let entry = window_entry( window_ );
+	close_start_window();
+	return { Path: path, Ui: entry ? entry.Ui : undefined };
 }
 
 
@@ -73,6 +136,12 @@ async function OpenWindow( Path )
 		},
 	} );
 	windows.set( window_.id, { Path: ready.File, Ui: ready.Ui, Ready: ready } );
+	if ( recent )
+	{
+		recent.Add( ready.File );
+		app.addRecentDocument( ready.File );
+		build_menu();
+	}
 
 	// The window stays on its own file's Web UI; anything else is the operating system's business.
 	window_.webContents.on( 'will-navigate', function ( Event, Url )
@@ -123,6 +192,101 @@ function report_stopped( Path, Code, Stderr )
 
 
 //---------------------------------------------------------------------
+// The start window: the one page the desktop owns, shown when it is started with no file.
+
+let start_window = null;
+
+function OpenStartWindow()
+{
+	if ( start_window )
+	{
+		start_window.show();
+		start_window.focus();
+		return start_window;
+	}
+	let window_ = new BrowserWindow( {
+		width: 620,
+		height: 560,
+		show: false,
+		title: 'jsonx',
+		webPreferences: {
+			preload: LIB_PATH.join( __dirname, 'preload.js' ),
+			contextIsolation: true,
+			nodeIntegration: false,
+			sandbox: false,
+		},
+	} );
+	let url = 'file:///' + START_PAGE.split( LIB_PATH.sep ).join( '/' );
+	windows.set( window_.id, { Path: null, Ui: url, Start: true } );
+
+	window_.webContents.on( 'will-navigate', function ( Event, Url )
+	{
+		if ( Guards.AllowNavigation( url, Url ) ) { return; }
+		Event.preventDefault();
+		return;
+	} );
+	window_.webContents.setWindowOpenHandler( function ( Details )
+	{
+		if ( !Guards.AllowNavigation( url, Details.url ) ) { shell.openExternal( Details.url ); }
+		return { action: 'deny' };
+	} );
+
+	window_.once( 'ready-to-show', function () { window_.show(); } );
+	window_.on( 'closed', function ()
+	{
+		windows.delete( window_.id );
+		start_window = null;
+		return;
+	} );
+
+	window_.loadFile( START_PAGE );
+	start_window = window_;
+	return window_;
+}
+
+
+// Once a file is open, the start window has done its job.
+function close_start_window()
+{
+	if ( !start_window ) { return; }
+	let window_ = start_window;
+	start_window = null;
+	window_.close();
+	return;
+}
+
+
+//---------------------------------------------------------------------
+// The menu: a template from src/Menu.js, with its actions wired to what this file can do.
+
+function build_menu()
+{
+	let template = MenuTemplate.MenuTemplate( {
+		Recent: recent ? recent.List() : [],
+		Version: app.getVersion(),
+	} );
+	let actions = {
+		OpenFile: async function () { await host_for( BrowserWindow.getFocusedWindow() ).OpenFile(); },
+		OpenPath: async function ( Path ) { await OpenPath( Path ); },
+		ClearRecent: function () { if ( recent ) { recent.Clear(); } app.clearRecentDocuments(); build_menu(); },
+		Quit: function () { app.quit(); },
+		OpenHomepage: function () { shell.openExternal( HOMEPAGE ); },
+		About: function ()
+		{
+			dialog.showMessageBox( {
+				type: 'info',
+				title: 'jsonx',
+				message: 'jsonx ' + app.getVersion(),
+				detail: 'The jsonx desktop. Each open file runs in its own jsonx process.',
+			} );
+		},
+	};
+	Menu.setApplicationMenu( Menu.buildFromTemplate( MenuTemplate.WithActions( template, actions ) ) );
+	return;
+}
+
+
+//---------------------------------------------------------------------
 // The host interface, answered only for the window the call came from.
 
 ipcMain.on( Preload.CHANNEL + '-capabilities', function ( Event )
@@ -145,29 +309,71 @@ ipcMain.handle( Preload.CHANNEL, async function ( Event, Name, Args )
 
 
 //---------------------------------------------------------------------
-app.whenReady().then( async function ()
+// Opens what a command line names, or the start window when it names nothing.
+
+async function open_command_line( Argv )
 {
-	let file = Args.FileFromArgv( process.argv, { Packaged: app.isPackaged } );
-	if ( !file )
+	let files = Args.FilesFromArgv( Argv, { Packaged: app.isPackaged } );
+	if ( files.length === 0 )
 	{
-		// The start window is step 3; until then, say what is missing rather than showing nothing.
-		dialog.showErrorBox( 'jsonx', 'Name a .jsonx file to open.' );
-		app.quit();
+		if ( windows.size === 0 ) { OpenStartWindow(); }
 		return;
 	}
-	try { await OpenWindow( file ); }
-	catch ( error )
+	for ( let index = 0; index < files.length; index++ )
 	{
-		dialog.showErrorBox( 'jsonx', error.message + '\n\n' + ( error.Stderr || '' ) );
-		app.quit();
+		await OpenPath( files[ index ] );
 	}
 	return;
-} );
+}
+
+
+//---------------------------------------------------------------------
+/*
+	***One instance runs.*** Opening a .jsonx file from the Explorer starts the program again, and Windows
+	hands it the path; that second instance gives its command line to the first and stops, so a file opened
+	twice is one process, one window, brought forward.
+*/
+
+if ( !app.requestSingleInstanceLock() )
+{
+	app.quit();
+}
+else
+{
+	app.on( 'second-instance', function ( Event, Argv )
+	{
+		open_command_line( Argv );
+		return;
+	} );
+
+	app.whenReady().then( async function ()
+	{
+		recent = Recent.NewRecent( { Path: LIB_PATH.join( app.getPath( 'userData' ), 'recent.json' ) } );
+		build_menu();
+		await open_command_line( process.argv );
+		return;
+	} );
+}
 
 
 app.on( 'window-all-closed', function ()
 {
 	app.quit();
+	return;
+} );
+
+
+// macOS: the dock's Open With, and clicking the icon with nothing open.
+app.on( 'open-file', function ( Event, Path )
+{
+	Event.preventDefault();
+	if ( app.isReady() ) { OpenPath( Path ); }
+	return;
+} );
+
+app.on( 'activate', function ()
+{
+	if ( windows.size === 0 ) { OpenStartWindow(); }
 	return;
 } );
 

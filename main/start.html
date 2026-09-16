@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+	<title>jsonx</title>
+	<style>
+		/*
+			The one page the desktop owns (cut 6 step 3). It holds no decision: Open file and the recent
+			list are the host's, and every file it opens is opened the same way the menu and the file
+			association open one. Nothing here is worth a test that needs a window.
+		*/
+		:root { color-scheme: light dark; }
+		body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: Canvas; color: CanvasText; }
+		main { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.5rem; }
+		h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
+		p.about { margin: 0 0 2rem; opacity: .7; }
+		button.open { font: inherit; padding: .5rem 1rem; border: 1px solid currentColor; border-radius: .375rem; background: transparent; color: inherit; cursor: pointer; }
+		button.open:hover { background: color-mix( in srgb, CanvasText 10%, transparent ); }
+		h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; opacity: .6; margin: 2.5rem 0 .5rem; }
+		ul { list-style: none; margin: 0; padding: 0; }
+		li { border-top: 1px solid color-mix( in srgb, CanvasText 15%, transparent ); }
+		li button { display: block; width: 100%; text-align: left; font: inherit; padding: .5rem .25rem; border: 0; background: transparent; color: inherit; cursor: pointer; }
+		li button:hover { background: color-mix( in srgb, CanvasText 8%, transparent ); }
+		li .name { font-weight: 600; }
+		li .path { display: block; font-size: .8rem; opacity: .6; word-break: break-all; }
+		p.none { opacity: .6; }
+	</style>
+</head>
+
+<body>
+	<main>
+		<h1>jsonx</h1>
+		<p class="about">Open a jsonx file to work on it.</p>
+		<button type="button" class="open" id="open">Open file...</button>
+
+		<h2>Recent</h2>
+		<ul id="recent"></ul>
+		<p class="none" id="none" hidden>No files yet.</p>
+	</main>
+
+	<script>
+		( function ()
+		{
+			var host = window.JsonxHost;
+
+			function open_file()
+			{
+				if ( !host || !host.OpenFile ) { return; }
+				host.OpenFile();
+				return;
+			}
+
+			function name_of( Path )
+			{
+				var parts = String( Path ).split( /[\\/]/ );
+				return parts[ parts.length - 1 ];
+			}
+
+			function show_recent( Files )
+			{
+				var list = document.getElementById( 'recent' );
+				var none = document.getElementById( 'none' );
+				list.textContent = '';
+				if ( !Files || Files.length === 0 ) { none.hidden = false; return; }
+				none.hidden = true;
+				Files.forEach( function ( File )
+				{
+					var item = document.createElement( 'li' );
+					var button = document.createElement( 'button' );
+					button.type = 'button';
+					var name = document.createElement( 'span' );
+					name.className = 'name';
+					name.textContent = name_of( File.Path );
+					var path = document.createElement( 'span' );
+					path.className = 'path';
+					path.textContent = File.Path;
+					button.appendChild( name );
+					button.appendChild( path );
+					button.addEventListener( 'click', function () { host.OpenPath( File.Path ); } );
+					item.appendChild( button );
+					list.appendChild( item );
+				} );
+				return;
+			}
+
+			document.getElementById( 'open' ).addEventListener( 'click', open_file );
+			if ( host && host.RecentFiles ) { host.RecentFiles().then( show_recent ); }
+			else { document.getElementById( 'none' ).hidden = false; }
+		} )();
+	</script>
+</body>
+
+</html>

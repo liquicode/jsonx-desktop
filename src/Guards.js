@@ -16,7 +16,7 @@
 
 
 //---------------------------------------------------------------------
-// The origin and path of an address, or null when it is not one a window may be at.
+// The address, or null when it is not one a window may be at: a served page, or a page of the app itself.
 
 function Parse( Address )
 {
@@ -24,19 +24,35 @@ function Parse( Address )
 	let url = null;
 	try { url = new URL( Address ); }
 	catch ( error ) { return null; }
-	if ( url.protocol !== 'http:' && url.protocol !== 'https:' ) { return null; }
+	if ( url.protocol !== 'http:' && url.protocol !== 'https:' && url.protocol !== 'file:' ) { return null; }
 	return url;
 }
 
 
 //---------------------------------------------------------------------
-// Is Address inside the Web UI a window was opened at? `Ui` is the ready line's Ui, ending in /ui/.
+// The app's own pages (the start window) are `file:` and are one page each, not a place to move about in.
+
+function SameDocument( First, Second )
+{
+	let first = Parse( First );
+	let second = Parse( Second );
+	if ( !first || !second ) { return false; }
+	if ( first.protocol !== second.protocol ) { return false; }
+	return decodeURIComponent( first.pathname ).toLowerCase() === decodeURIComponent( second.pathname ).toLowerCase();
+}
+
+
+//---------------------------------------------------------------------
+// Is Address inside the page a window was opened at? `Ui` is a process's Web UI, ending in /ui/, or one
+// of the app's own pages, which is only ever itself.
 
 function WithinUi( Ui, Address )
 {
 	let base = Parse( Ui );
 	let asked = Parse( Address );
 	if ( !base || !asked ) { return false; }
+	if ( base.protocol === 'file:' ) { return SameDocument( Ui, Address ); }
+	if ( asked.protocol !== base.protocol ) { return false; }
 	if ( asked.origin !== base.origin ) { return false; }
 	return asked.pathname.startsWith( base.pathname );
 }
@@ -63,6 +79,7 @@ function SenderAllowed( Ui, SenderAddress )
 //---------------------------------------------------------------------
 module.exports = {
 	Parse: Parse,
+	SameDocument: SameDocument,
 	WithinUi: WithinUi,
 	AllowNavigation: AllowNavigation,
 	SenderAllowed: SenderAllowed,

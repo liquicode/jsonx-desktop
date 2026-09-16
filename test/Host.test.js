@@ -131,6 +131,62 @@ describe( 'The desktop host', function ()
 	} );
 
 
+	it( 'opens a file the person chooses, and one it is handed', async function ()
+	{
+		let opened = [];
+		function new_opening_host( Options )
+		{
+			let options = Options || {};
+			return Host.NewHost( {
+				Dialog: {
+					showOpenDialog: function ()
+					{
+						if ( options.Cancelled ) { return Promise.resolve( { canceled: true, filePaths: [] } ); }
+						return Promise.resolve( { canceled: false, filePaths: [ 'C:\\season\\chosen.jsonx' ] } );
+					},
+				},
+				OpenPath: function ( Path )
+				{
+					if ( options.OpeningFails ) { return Promise.reject( new Error( 'not a jsonx file' ) ); }
+					opened.push( Path );
+					return Promise.resolve( { Path: Path, Ui: 'http://127.0.0.1:51691/ui/' } );
+				},
+			} );
+		}
+
+		let host = new_opening_host();
+		// A host with a dialog can save text too: what it was given is what it lists.
+		LIB_ASSERT.deepStrictEqual( host.Capabilities(), [ 'SaveText', 'OpenFile', 'OpenPath' ] );
+		LIB_ASSERT.deepStrictEqual( await host.OpenFile(), { Path: 'C:\\season\\chosen.jsonx', Ui: 'http://127.0.0.1:51691/ui/' } );
+		LIB_ASSERT.deepStrictEqual( await host.OpenPath( 'C:\\season\\named.jsonx' ), { Path: 'C:\\season\\named.jsonx', Ui: 'http://127.0.0.1:51691/ui/' } );
+		LIB_ASSERT.deepStrictEqual( opened, [ 'C:\\season\\chosen.jsonx', 'C:\\season\\named.jsonx' ] );
+
+		// Cancelled is null, and so is a file which would not open - which said so itself, in front of the person.
+		LIB_ASSERT.strictEqual( await new_opening_host( { Cancelled: true } ).OpenFile(), null );
+		LIB_ASSERT.strictEqual( await new_opening_host( { OpeningFails: true } ).OpenFile(), null );
+		LIB_ASSERT.strictEqual( await new_opening_host( { OpeningFails: true } ).OpenPath( 'C:\\x.jsonx' ), null );
+	} );
+
+
+	it( 'lists the recent files, saying which are open now', async function ()
+	{
+		let open_now = { 'C:\\season\\a.jsonx': 'http://127.0.0.1:51691/ui/' };
+		let host = Host.NewHost( {
+			RecentList: function () { return [ { Path: 'C:\\season\\a.jsonx', At: 'x' }, { Path: 'C:\\season\\b.jsonx', At: 'y' } ]; },
+			UiFor: function ( Path ) { return open_now[ Path ] || null; },
+		} );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities(), [ 'RecentFiles' ] );
+		LIB_ASSERT.deepStrictEqual( await host.RecentFiles(), [
+			{ Path: 'C:\\season\\a.jsonx', Ui: 'http://127.0.0.1:51691/ui/' },
+			{ Path: 'C:\\season\\b.jsonx' },
+		] );
+
+		// A list which cannot be read is an empty one, never an error in the page.
+		let broken = Host.NewHost( { RecentList: function () { throw new Error( 'no' ); } } );
+		LIB_ASSERT.deepStrictEqual( await broken.RecentFiles(), [] );
+	} );
+
+
 	it( 'suggests a file name from the file being shown', function ()
 	{
 		LIB_ASSERT.strictEqual( Host.SuggestedName( 'C:\\season\\observatory.jsonx' ), 'observatory.json' );
