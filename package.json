@@ -1,0 +1,54 @@
+{
+	"name": "@liquicode/jsonx-desktop",
+	"version": "0.1.0",
+	"private": true,
+	"description": "The jsonx desktop: opens a jsonx file in its own jsonx process and shows its Web UI.",
+	"license": "MIT",
+	"engines": {
+		"node": ">=22.0.0"
+	},
+	"homepage": "http://jsonx.liquicode.com",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/liquicode/jsonx-desktop.git"
+	},
+	"authors": [
+		{
+			"name": "Andre' G. Bowlin",
+			"email": "agbowlin@gmail.com",
+			"homepage": "http://liquicode.com"
+		}
+	],
+	"main": "main/main.js",
+	"scripts": {
+		"start": "electron .",
+		"test": "node --test \"test/**/*.test.js\""
+	},
+	"keywords": [
+		"json",
+		"jsonx",
+		"desktop",
+		"electron"
+	],
+	"dependencies": {
+		"@liquicode/jsonstor-browser": "^0.2.0",
+		"@liquicode/jsonstor-couchbase": "^0.2.0",
+		"@liquicode/jsonstor-couchdb": "^0.2.0",
+		"@liquicode/jsonstor-duckdb": "^0.2.0",
+		"@liquicode/jsonstor-dynamodb": "^0.2.0",
+		"@liquicode/jsonstor-elasticsearch": "^0.2.0",
+		"@liquicode/jsonstor-excel": "^0.2.0",
+		"@liquicode/jsonstor-leveldb": "^0.2.0",
+		"@liquicode/jsonstor-mongodb": "^0.2.0",
+		"@liquicode/jsonstor-mssql": "^0.2.0",
+		"@liquicode/jsonstor-mysql": "^0.2.0",
+		"@liquicode/jsonstor-oracle": "^0.2.0",
+		"@liquicode/jsonstor-postgres": "^0.2.0",
+		"@liquicode/jsonstor-redis": "^0.2.0",
+		"@liquicode/jsonstor-sqlite": "^0.2.0",
+		"@liquicode/jsonx-cli": "^0.1.0"
+	},
+	"devDependencies": {
+		"electron": "^44.3.0"
+	}
+}
