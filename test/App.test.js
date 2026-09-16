@@ -1,0 +1,100 @@
+'use strict';
+
+/*
+	The app itself, once (cut 6 step 2): Electron started on a file as a person would start it, and its
+	window driven over the DevTools protocol.
+
+	What this proves that no other test can: the window really loads the file's own Web UI out of the
+	child process, Electron's Chromium gets past the loopback guard, and the page finds the host the
+	preload gave it. Everything else it might assert belongs to the modules, which are tested without a
+	window.
+*/
+
+const LIB_ASSERT = require( 'assert' );
+const LIB_FS = require( 'fs' );
+const LIB_OS = require( 'os' );
+const LIB_PATH = require( 'path' );
+const { describe, it, before, after } = require( 'node:test' );
+
+const Cdp = require( './fixtures/Cdp.js' );
+
+
+let folder = null;
+let file = null;
+let app = null;
+let page = null;
+
+
+//---------------------------------------------------------------------
+describe( 'The app', function ()
+{
+
+	before( async function ()
+	{
+		folder = LIB_FS.mkdtempSync( LIB_PATH.join( LIB_OS.tmpdir(), 'jsonx-desktop-app-' ) );
+		file = LIB_PATH.join( folder, 'observatory.jsonx' );
+		LIB_FS.writeFileSync( file, JSON.stringify( {
+			Name: 'Observatory',
+			DataSources: [ { Name: 'Bookings', AdapterName: 'jsonstor-jsonfile', Settings: { Path: 'bookings.json' } } ],
+		}, null, '\t' ) );
+
+		app = await Cdp.StartApp( { Args: [ file ] } );
+		page = await app.AttachToPage( '/ui/' );
+	} );
+
+
+	after( async function ()
+	{
+		if ( app ) { await app.Stop(); }
+		try { LIB_FS.rmSync( folder, { recursive: true, force: true } ); }
+		catch ( error ) { /* the child may still hold it a moment */ }
+	} );
+
+
+	it( 'shows the file s own Web UI, served by the file s own process', async function ()
+	{
+		// The window is at a loopback address on a port the child chose, not at a file:// page.
+		LIB_ASSERT.match( page.Url, /^http:\/\/127\.0\.0\.1:\d+\/ui\// );
+
+		// The page connected to its process and heard what the file holds.
+		await page.WaitFor( 'document.body.innerText.includes( "Bookings" )' );
+		let title = await page.Evaluate( 'document.title' );
+		LIB_ASSERT.ok( title.length > 0, 'the page has a title' );
+	} );
+
+
+	it( 'gets past the loopback guard, so nothing the page asked for was refused', async function ()
+	{
+		// Cut 5's lesson: a request the guard refuses shows up here and nowhere else.
+		LIB_ASSERT.deepStrictEqual( page.Errors, [] );
+		let asked = await page.Evaluate( '( async function () { let answer = await fetch( "/ui/config.json" ); return answer.status; } )()' );
+		LIB_ASSERT.strictEqual( asked, 200 );
+	} );
+
+
+	it( 'hands the page a desktop host, and the page follows what it lists', async function ()
+	{
+		let host = await page.Evaluate( '( function () { let h = window.JsonxHost; return { Kind: h.Kind, Capabilities: h.Capabilities(), HasOpenFile: typeof h.OpenFile } } )()' );
+		LIB_ASSERT.strictEqual( host.Kind, 'desktop' );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText' ] );
+		LIB_ASSERT.strictEqual( host.HasOpenFile, 'undefined' );
+
+		// A capability the host has reaches the main process and is answered.
+		let copied = await page.Evaluate( 'window.JsonxHost.CopyText( "from the desktop" )' );
+		LIB_ASSERT.strictEqual( copied, true );
+
+		// The page shows a control only for what the host lists: step 3 adds these two.
+		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-file" ) === null' ), true );
+		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-terminal" ) === null' ), true );
+	} );
+
+
+	/*
+		***A blocked navigation is not tried here*** (2026-09-16): making the window really ask for
+		another origin gets it refused, Chromium reports ERR_ABORTED, and Electron shows a modal error
+		dialog - which blocks the window, the test and whoever is watching until it is clicked away. The
+		rule itself is `Guards.AllowNavigation`, tested in Guards.test.js as the plain function it is, and
+		`main/main.js` does nothing with it but ask. Nothing in a window is needed to know it holds.
+	*/
+
+} );
