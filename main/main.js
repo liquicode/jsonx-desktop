@@ -157,6 +157,10 @@ async function OpenWindow( Path )
 		return { action: 'deny' };
 	} );
 
+	// ***The window is titled by its file***, not by the page: every page served by jsonx-cli is called
+	// "jsonx", so two open files looked alike in the taskbar (found by the installed app, 2026-09-16).
+	window_.on( 'page-title-updated', function ( Event ) { Event.preventDefault(); return; } );
+
 	window_.once( 'ready-to-show', function () { window_.show(); } );
 	window_.on( 'closed', function ()
 	{
@@ -231,6 +235,7 @@ function OpenTerminalWindow( ForWindow )
 		},
 	} );
 	windows.set( window_.id, { Path: entry.Path, Ui: entry.Ui, Terminal: true } );
+	window_.on( 'page-title-updated', function ( Event ) { Event.preventDefault(); return; } );
 
 	window_.webContents.on( 'will-navigate', function ( Event, Url )
 	{

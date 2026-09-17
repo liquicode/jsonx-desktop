@@ -22,7 +22,66 @@
 	"main": "main/main.js",
 	"scripts": {
 		"start": "electron .",
-		"test": "node --test \"test/**/*.test.js\""
+		"test": "node --test \"test/**/*.test.js\"",
+		"pack": "electron-builder --dir",
+		"build": "electron-builder --win"
+	},
+	"author": "Andre' G. Bowlin <agbowlin@gmail.com>",
+	"build": {
+		"appId": "com.liquicode.jsonx",
+		"productName": "jsonx",
+		"copyright": "Copyright (c) liquicode",
+		"electronVersion": "44.4.1",
+		"directories": {
+			"output": "dist"
+		},
+		"files": [
+			"main/**/*",
+			"src/**/*",
+			"package.json",
+			"!**/.plans/**",
+			"!**/test/**"
+		],
+		"asarUnpack": [
+			"**/node_modules/@liquicode/**",
+			"**/node_modules/better-sqlite3/**",
+			"**/node_modules/classic-level/**",
+			"**/node_modules/@duckdb/**",
+			"**/node_modules/oracledb/**"
+		],
+		"fileAssociations": [
+			{
+				"ext": "jsonx",
+				"name": "jsonx file",
+				"description": "A jsonx file",
+				"role": "Editor"
+			}
+		],
+		"win": {
+			"target": [
+				"nsis"
+			]
+		},
+		"nsis": {
+			"oneClick": false,
+			"perMachine": false,
+			"allowToChangeInstallationDirectory": true,
+			"createDesktopShortcut": true,
+			"createStartMenuShortcut": true,
+			"shortcutName": "jsonx"
+		},
+		"mac": {
+			"target": [
+				"dmg"
+			],
+			"category": "public.app-category.developer-tools"
+		},
+		"linux": {
+			"target": [
+				"AppImage"
+			],
+			"category": "Development"
+		}
 	},
 	"keywords": [
 		"json",
@@ -49,6 +108,7 @@
 		"@liquicode/jsonx-cli": "^0.1.0"
 	},
 	"devDependencies": {
-		"electron": "^44.3.0"
+		"electron": "^44.3.0",
+		"electron-builder": "^26.15.3"
 	}
 }

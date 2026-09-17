@@ -58,8 +58,14 @@ describe( 'The app', function ()
 
 		// The page connected to its process and heard what the file holds.
 		await page.WaitFor( 'document.body.innerText.includes( "Bookings" )' );
-		let title = await page.Evaluate( 'document.title' );
-		LIB_ASSERT.ok( title.length > 0, 'the page has a title' );
+
+		/*
+			***The window's own title is not asserted here***: it belongs to the operating system's window,
+			which the DevTools protocol cannot see - a page target carries the document's title, which is
+			"jsonx" for every served page. That is exactly why the window is titled by its file in
+			main.js, and it is checked on the installed app instead (2026-09-16).
+		*/
+		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.title' ), 'jsonx' );
 	} );
 
 
