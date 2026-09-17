@@ -155,6 +155,20 @@ function NewHost( Options )
 
 
 	//---------------------------------------------------------------------
+	// A jsonx terminal on this file's process (O7): the page jsonx-cli serves at <Ui>terminal.html, in a
+	// window of its own. It is not an operating system shell, and nothing here can make it one.
+
+	if ( typeof options.OpenTerminal === 'function' )
+	{
+		host.OpenTerminal = async function ()
+		{
+			try { return ( await options.OpenTerminal() ) !== false; }
+			catch ( error ) { return false; }
+		};
+	}
+
+
+	//---------------------------------------------------------------------
 	// The files opened lately, newest first, each with the address of its Web UI when it is open now.
 
 	if ( typeof options.RecentList === 'function' )
@@ -194,6 +208,18 @@ function NewHost( Options )
 
 
 //---------------------------------------------------------------------
+// The jsonx terminal's page on a process's Web UI: <Ui>terminal.html, whatever port it is on.
+
+function TerminalUrl( Ui )
+{
+	let ui = String( Ui || '' );
+	if ( ui === '' ) { return null; }
+	if ( ui[ ui.length - 1 ] !== '/' ) { ui += '/'; }
+	return ui + 'terminal.html';
+}
+
+
+//---------------------------------------------------------------------
 // A name to suggest for a file saved out of a file's page: the file's own name, with a new ending.
 
 function SuggestedName( FilePath, Ending )
@@ -209,5 +235,6 @@ function SuggestedName( FilePath, Ending )
 module.exports = {
 	KIND: KIND,
 	NewHost: NewHost,
+	TerminalUrl: TerminalUrl,
 	SuggestedName: SuggestedName,
 };

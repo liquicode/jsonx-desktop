@@ -187,6 +187,25 @@ describe( 'The desktop host', function ()
 	} );
 
 
+	it( 'opens a jsonx terminal on the same process', async function ()
+	{
+		let asked = 0;
+		let host = Host.NewHost( { OpenTerminal: function () { asked++; return true; } } );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities(), [ 'OpenTerminal' ] );
+		LIB_ASSERT.strictEqual( await host.OpenTerminal(), true );
+		LIB_ASSERT.strictEqual( asked, 1 );
+
+		// A terminal which cannot be opened, or which fails, is false - never an error in the page.
+		LIB_ASSERT.strictEqual( await Host.NewHost( { OpenTerminal: function () { return false; } } ).OpenTerminal(), false );
+		LIB_ASSERT.strictEqual( await Host.NewHost( { OpenTerminal: function () { throw new Error( 'no window' ); } } ).OpenTerminal(), false );
+
+		// The page it opens is the one jsonx-cli serves beside the Web UI, on whatever port the file's process took.
+		LIB_ASSERT.strictEqual( Host.TerminalUrl( 'http://127.0.0.1:51691/ui/' ), 'http://127.0.0.1:51691/ui/terminal.html' );
+		LIB_ASSERT.strictEqual( Host.TerminalUrl( 'http://127.0.0.1:51691/ui' ), 'http://127.0.0.1:51691/ui/terminal.html' );
+		LIB_ASSERT.strictEqual( Host.TerminalUrl( '' ), null );
+	} );
+
+
 	it( 'suggests a file name from the file being shown', function ()
 	{
 		LIB_ASSERT.strictEqual( Host.SuggestedName( 'C:\\season\\observatory.jsonx' ), 'observatory.json' );

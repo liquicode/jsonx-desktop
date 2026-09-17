@@ -75,6 +75,7 @@ function host_for( Window )
 		Dialog: dialog,
 		WindowFor: function () { return Window; },
 		OpenPath: async function ( Path ) { return await OpenPath( Path ); },
+		OpenTerminal: function () { return OpenTerminalWindow( Window ); },
 		RecentList: function () { return recent ? recent.List() : []; },
 		UiFor: function ( Path ) { let ready = processes.Lookup( Path ); return ready ? ready.Ui : null; },
 	} );
@@ -160,6 +161,14 @@ async function OpenWindow( Path )
 	window_.on( 'closed', function ()
 	{
 		windows.delete( window_.id );
+		// The file's terminal talks to this process, so it goes when the file does.
+		windows.forEach( function ( Each, Id )
+		{
+			if ( !Each.Terminal || Each.Path !== ready.File ) { return; }
+			let terminal = BrowserWindow.fromId( Id );
+			if ( terminal ) { terminal.close(); }
+			return;
+		} );
 		processes.Stop( ready.File );
 		return;
 	} );
@@ -188,6 +197,59 @@ function report_stopped( Path, Code, Stderr )
 		return;
 	} );
 	return;
+}
+
+
+//---------------------------------------------------------------------
+/*
+	A jsonx terminal beside a file's window (O7): the page jsonx-cli serves at <Ui>terminal.html, on the
+	same process, so what is typed there and what the window shows are one session. ***It is not a system
+	shell***: every line is read by the process's own command table, and this file adds nothing to it.
+*/
+
+function OpenTerminalWindow( ForWindow )
+{
+	let entry = window_entry( ForWindow );
+	if ( !entry || !entry.Ui || entry.Start ) { return false; }
+	let url = Host.TerminalUrl( entry.Ui );
+
+	// One terminal per file: asking again brings it forward.
+	let already = null;
+	windows.forEach( function ( Each, Id ) { if ( Each.Terminal && Each.Path === entry.Path ) { already = BrowserWindow.fromId( Id ); } } );
+	if ( already ) { already.show(); already.focus(); return true; }
+
+	let window_ = new BrowserWindow( {
+		width: 900,
+		height: 600,
+		show: false,
+		title: 'jsonx terminal - ' + LIB_PATH.basename( entry.Path ),
+		webPreferences: {
+			preload: LIB_PATH.join( __dirname, 'preload.js' ),
+			contextIsolation: true,
+			nodeIntegration: false,
+			sandbox: false,
+		},
+	} );
+	windows.set( window_.id, { Path: entry.Path, Ui: entry.Ui, Terminal: true } );
+
+	window_.webContents.on( 'will-navigate', function ( Event, Url )
+	{
+		if ( Guards.AllowNavigation( entry.Ui, Url ) ) { return; }
+		Event.preventDefault();
+		return;
+	} );
+	window_.webContents.setWindowOpenHandler( function ( Details )
+	{
+		if ( !Guards.AllowNavigation( entry.Ui, Details.url ) ) { shell.openExternal( Details.url ); }
+		return { action: 'deny' };
+	} );
+
+	// Closing a terminal closes nothing else: the file's process belongs to its own window.
+	window_.once( 'ready-to-show', function () { window_.show(); } );
+	window_.on( 'closed', function () { windows.delete( window_.id ); return; } );
+
+	window_.loadURL( url );
+	return true;
 }
 
 

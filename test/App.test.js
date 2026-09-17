@@ -74,25 +74,43 @@ describe( 'The app', function ()
 
 	it( 'hands the page a desktop host, and the page follows what it lists', async function ()
 	{
-		let host = await page.Evaluate( '( function () { let h = window.JsonxHost; return { Kind: h.Kind, Capabilities: h.Capabilities(), HasTerminal: typeof h.OpenTerminal } } )()' );
+		let host = await page.Evaluate( '( function () { let h = window.JsonxHost; return { Kind: h.Kind, Capabilities: h.Capabilities() } } )()' );
 		LIB_ASSERT.strictEqual( host.Kind, 'desktop' );
-		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'OpenPath', 'RecentFiles' ] );
-		// Step 4 adds the terminal; until then the page shows no button for it.
-		LIB_ASSERT.strictEqual( host.HasTerminal, 'undefined' );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'OpenPath', 'OpenTerminal', 'RecentFiles' ] );
 
 		// A capability the host has reaches the main process and is answered.
 		let copied = await page.Evaluate( 'window.JsonxHost.CopyText( "from the desktop" )' );
 		LIB_ASSERT.strictEqual( copied, true );
 
-		// The page shows a control for what the host lists, and none for what it does not.
+		// The page shows a control for what the host lists.
 		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-file" ) !== null' ), true );
-		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-terminal" ) === null' ), true );
+		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-terminal" ) !== null' ), true );
 
 		// The file it opened is in the recent list, and the list says it is open now.
 		let recent = await page.Evaluate( 'window.JsonxHost.RecentFiles()' );
 		LIB_ASSERT.strictEqual( recent.length, 1 );
 		LIB_ASSERT.strictEqual( recent[ 0 ].Path, file );
 		LIB_ASSERT.match( recent[ 0 ].Ui, /^http:\/\/127\.0\.0\.1:\d+\/ui\// );
+	} );
+
+
+	it( 'opens a jsonx terminal on the same process as the file s window', async function ()
+	{
+		// The Terminal button is the page's; what it opens is a window on this file's own process.
+		await page.Click( '#jsonx-open-terminal' );
+		let terminal = await app.AttachToPage( 'terminal.html' );
+		await terminal.WaitFor( 'document.getElementById( "jsonx-prompt-input" ) !== null', 20000 );
+
+		// The same process: its address is the file window's, and it says which file it holds.
+		LIB_ASSERT.strictEqual( terminal.Url.replace( 'terminal.html', '' ), page.Url );
+		await terminal.WaitFor( 'document.body.innerText.includes( "observatory.jsonx" )', 20000 );
+		LIB_ASSERT.deepStrictEqual( terminal.Errors, [] );
+
+		// Asking again brings the same terminal forward rather than opening a second.
+		await page.Click( '#jsonx-open-terminal' );
+		await new Promise( function ( Resolve ) { setTimeout( Resolve, 1000 ); } );
+		let terminals = ( await app.Targets() ).filter( function ( Each ) { return Each.url.includes( 'terminal.html' ); } );
+		LIB_ASSERT.strictEqual( terminals.length, 1 );
 	} );
 
 
