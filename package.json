@@ -1,6 +1,6 @@
 {
 	"name": "@liquicode/jsonx-desktop",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"private": true,
 	"description": "The jsonx desktop: opens a jsonx file in its own jsonx process and shows its Web UI.",
 	"license": "MIT",
@@ -105,7 +105,7 @@
 		"@liquicode/jsonstor-postgres": "^0.2.0",
 		"@liquicode/jsonstor-redis": "^0.2.0",
 		"@liquicode/jsonstor-sqlite": "^0.2.0",
-		"@liquicode/jsonx-cli": "^0.1.0"
+		"@liquicode/jsonx-cli": "^0.2.0"
 	},
 	"devDependencies": {
 		"electron": "^44.3.0",
