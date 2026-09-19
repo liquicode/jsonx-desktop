@@ -82,13 +82,14 @@ describe( 'The app', function ()
 	{
 		let host = await page.Evaluate( '( function () { let h = window.JsonxHost; return { Kind: h.Kind, Capabilities: h.Capabilities() } } )()' );
 		LIB_ASSERT.strictEqual( host.Kind, 'desktop' );
-		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'OpenPath', 'OpenTerminal', 'RecentFiles' ] );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities, [ 'Notify', 'CopyText', 'SaveText', 'OpenFile', 'NewFile', 'OpenPath', 'OpenTerminal', 'RecentFiles' ] );
 
 		// A capability the host has reaches the main process and is answered.
 		let copied = await page.Evaluate( 'window.JsonxHost.CopyText( "from the desktop" )' );
 		LIB_ASSERT.strictEqual( copied, true );
 
 		// The page shows a control for what the host lists.
+		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-new-file" ) !== null' ), true );
 		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-file" ) !== null' ), true );
 		LIB_ASSERT.strictEqual( await page.Evaluate( 'document.querySelector( "#jsonx-open-terminal" ) !== null' ), true );
 
@@ -128,6 +129,7 @@ describe( 'The app', function ()
 		{
 			let start = await second.AttachToPage( 'start.html' );
 			await start.WaitFor( 'document.getElementById( "open" ) !== null' );
+			LIB_ASSERT.strictEqual( await start.Evaluate( 'document.getElementById( "new" ) !== null' ), true );
 
 			// With nothing opened yet, it says so.
 			LIB_ASSERT.strictEqual( await start.Evaluate( 'document.getElementById( "none" ).hidden' ), false );

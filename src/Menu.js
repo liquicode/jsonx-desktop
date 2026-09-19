@@ -45,6 +45,7 @@ function MenuTemplate( Options )
 		{
 			label: '&File',
 			submenu: [
+				{ label: 'New...', accelerator: 'CmdOrCtrl+N', Action: 'NewFile' },
 				{ label: 'Open...', accelerator: 'CmdOrCtrl+O', Action: 'OpenFile' },
 				{ label: 'Open Recent', submenu: recent_items },
 				{ type: 'separator' },

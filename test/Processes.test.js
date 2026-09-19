@@ -202,6 +202,40 @@ LIB_TEST.describe( 'Processes', function ()
 	} );
 
 
+	LIB_TEST.it( 'asks jsonx for a new file, which a process then opens with no error', async function ()
+	{
+		let folder = new_folder();
+		let processes = new_processes();
+		try
+		{
+			let text = await processes.Skeleton( 'Inventory' );
+			let parsed = JSON.parse( text );
+			LIB_ASSERT.strictEqual( parsed.Name, 'Inventory' );
+			LIB_ASSERT.ok( parsed.DataSources.length > 0 && parsed.Objects.length > 0, 'the starter file, not an empty one' );
+
+			// It is a file jsonx holds as it is: served, and its objects listed.
+			let file = write_file( folder, 'Inventory.jsonx', text );
+			let ready = await processes.Start( file );
+			let objects = await post( ready.Url + '/query/list', {} );
+			LIB_ASSERT.strictEqual( objects.Status, 200 );
+			LIB_ASSERT.strictEqual( objects.Body.Ok, true );
+
+			// A command line which fails is a ProcessError carrying what it said.
+			let broken = new_processes( { Bin: write_file( folder, 'broken.js', 'process.stderr.write( "no skeleton" ); process.exit( 2 );\n' ) } );
+			await LIB_ASSERT.rejects(
+				function () { return broken.Skeleton( 'x' ); },
+				function ( Error_ )
+				{
+					LIB_ASSERT.strictEqual( Error_.name, 'ProcessError' );
+					LIB_ASSERT.strictEqual( Error_.ExitCode, 2 );
+					LIB_ASSERT.strictEqual( Error_.Stderr, 'no skeleton' );
+					return true;
+				} );
+		}
+		finally { await processes.StopAll(); }
+	} );
+
+
 	LIB_TEST.it( 'gives up when no ready line comes', async function ()
 	{
 		let folder = new_folder();

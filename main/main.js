@@ -75,6 +75,9 @@ function host_for( Window )
 		Dialog: dialog,
 		WindowFor: function () { return Window; },
 		OpenPath: async function ( Path ) { return await OpenPath( Path ); },
+		Skeleton: function ( Name ) { return processes.Skeleton( Name ); },
+		// A new file is suggested beside the file this window shows, or in Documents from the start window.
+		FolderFor: function () { let entry = window_entry( Window ); return ( entry && entry.Path ) ? LIB_PATH.dirname( entry.Path ) : app.getPath( 'documents' ); },
 		OpenTerminal: function () { return OpenTerminalWindow( Window ); },
 		RecentList: function () { return recent ? recent.List() : []; },
 		UiFor: function ( Path ) { let ready = processes.Lookup( Path ); return ready ? ready.Ui : null; },
@@ -333,6 +336,7 @@ function build_menu()
 		Version: app.getVersion(),
 	} );
 	let actions = {
+		NewFile: async function () { await host_for( BrowserWindow.getFocusedWindow() ).NewFile(); },
 		OpenFile: async function () { await host_for( BrowserWindow.getFocusedWindow() ).OpenFile(); },
 		OpenPath: async function ( Path ) { await OpenPath( Path ); },
 		ClearRecent: function () { if ( recent ) { recent.Clear(); } app.clearRecentDocuments(); build_menu(); },

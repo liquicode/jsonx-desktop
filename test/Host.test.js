@@ -168,6 +168,68 @@ describe( 'The desktop host', function ()
 	} );
 
 
+	it( 'makes a new file where the person says, named as they typed it, and opens it', async function ()
+	{
+		let said = { Asked: [], Written: [], Opened: [], Told: [] };
+		function new_making_host( Options )
+		{
+			let options = Options || {};
+			return Host.NewHost( {
+				Dialog: {
+					showSaveDialog: function ( Window, Request )
+					{
+						said.Asked.push( Request || Window );
+						if ( options.Cancelled ) { return Promise.resolve( { canceled: true, filePath: undefined } ); }
+						return Promise.resolve( { canceled: false, filePath: options.ChosenPath || 'C:\\season\\Inventory.jsonx' } );
+					},
+					showMessageBox: function ( Window, Message ) { said.Told.push( Message || Window ); return Promise.resolve( { response: 0 } ); },
+				},
+				FolderFor: function () { return options.Folder || null; },
+				Skeleton: function ( Name )
+				{
+					if ( options.SkeletonFails ) { let error = new Error( 'jsonx new stopped with exit 2.' ); error.Stderr = 'no skeleton\n'; return Promise.reject( error ); }
+					return Promise.resolve( '{ "Name": ' + JSON.stringify( Name ) + ' }' );
+				},
+				WriteFile: function ( Path, Text ) { said.Written.push( [ Path, Text ] ); return Promise.resolve(); },
+				OpenPath: function ( Path ) { said.Opened.push( Path ); return Promise.resolve( { Path: Path, Ui: 'http://127.0.0.1:51691/ui/' } ); },
+			} );
+		}
+
+		let host = new_making_host( { Folder: 'C:\\season' } );
+		LIB_ASSERT.deepStrictEqual( host.Capabilities(), [ 'SaveText', 'OpenFile', 'NewFile', 'OpenPath' ] );
+		LIB_ASSERT.deepStrictEqual( await host.NewFile(), { Path: 'C:\\season\\Inventory.jsonx', Ui: 'http://127.0.0.1:51691/ui/' } );
+		// Suggested beside the file being shown, only as a jsonx file; written with the Name the person typed; then opened.
+		LIB_ASSERT.strictEqual( said.Asked[ 0 ].defaultPath, LIB_PATH.join( 'C:\\season', 'New file.jsonx' ) );
+		LIB_ASSERT.deepStrictEqual( said.Asked[ 0 ].filters, [ { name: 'jsonx files', extensions: [ 'jsonx' ] } ] );
+		LIB_ASSERT.deepStrictEqual( said.Written, [ [ 'C:\\season\\Inventory.jsonx', '{ "Name": "Inventory" }' ] ] );
+		LIB_ASSERT.deepStrictEqual( said.Opened, [ 'C:\\season\\Inventory.jsonx' ] );
+
+		// A name typed with no ending gets .jsonx; with no folder to suggest, the dialog chooses.
+		said.Written = [];
+		await new_making_host( { ChosenPath: 'C:\\season\\Moons' } ).NewFile();
+		LIB_ASSERT.deepStrictEqual( said.Written, [ [ 'C:\\season\\Moons.jsonx', '{ "Name": "Moons" }' ] ] );
+		LIB_ASSERT.strictEqual( said.Asked[ said.Asked.length - 1 ].defaultPath, 'New file.jsonx' );
+
+		// Cancelled is null and writes nothing.
+		said.Written = [];
+		LIB_ASSERT.strictEqual( await new_making_host( { Cancelled: true } ).NewFile(), null );
+		LIB_ASSERT.deepStrictEqual( said.Written, [] );
+
+		// A file which could not be made says why in front of the person, writes nothing, opens nothing, and is null.
+		said.Opened = [];
+		LIB_ASSERT.strictEqual( await new_making_host( { SkeletonFails: true } ).NewFile(), null );
+		LIB_ASSERT.deepStrictEqual( said.Written, [] );
+		LIB_ASSERT.deepStrictEqual( said.Opened, [] );
+		LIB_ASSERT.strictEqual( said.Told.length, 1 );
+		LIB_ASSERT.strictEqual( said.Told[ 0 ].message, 'Cannot make Inventory.jsonx.' );
+		LIB_ASSERT.strictEqual( said.Told[ 0 ].detail, 'no skeleton' );
+
+		// Without a way to make its text, there is no NewFile to offer.
+		LIB_ASSERT.strictEqual( Host.NewHost( { Dialog: {}, OpenPath: function () {} } ).NewFile, undefined );
+		LIB_ASSERT.strictEqual( Host.FileName( 'C:\\season\\Inventory.jsonx' ), 'Inventory' );
+	} );
+
+
 	it( 'lists the recent files, saying which are open now', async function ()
 	{
 		let open_now = { 'C:\\season\\a.jsonx': 'http://127.0.0.1:51691/ui/' };
@@ -243,9 +305,10 @@ describe( 'The preload host', function ()
 		] );
 
 		// The page is never given an exception to catch: a refused call is false, or null where a value was asked for.
-		let refusing = Preload.NewDesktopHost( function () { return Promise.reject( new Error( 'refused' ) ); }, [ 'CopyText', 'OpenFile', 'RecentFiles' ] );
+		let refusing = Preload.NewDesktopHost( function () { return Promise.reject( new Error( 'refused' ) ); }, [ 'CopyText', 'OpenFile', 'NewFile', 'RecentFiles' ] );
 		LIB_ASSERT.strictEqual( await refusing.CopyText( 'x' ), false );
 		LIB_ASSERT.strictEqual( await refusing.OpenFile(), null );
+		LIB_ASSERT.strictEqual( await refusing.NewFile(), null );
 		LIB_ASSERT.strictEqual( await refusing.RecentFiles(), null );
 
 		// What it lists is what it was told, so a step which adds a capability changes nothing here.

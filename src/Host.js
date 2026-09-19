@@ -15,13 +15,14 @@
 	-	***Each answer is a promise of true or false***, false meaning the person cancelled or the host
 		could not - never an exception the page has to catch.
 
-	Step 3 adds OpenFile and RecentFiles, and step 4 OpenTerminal.
+	Step 3 adds OpenFile and RecentFiles, and step 4 OpenTerminal. NewFile came after cut 6 (2026-09-19).
 */
 
 const LIB_PATH = require( 'path' );
 
 
 const KIND = 'desktop';
+const NEW_FILE = 'New file.jsonx';
 
 
 //---------------------------------------------------------------------
@@ -32,6 +33,10 @@ const KIND = 'desktop';
 		Notification    Electron's Notification class, for Notify
 		WriteFile       async ( Path, Text ); default fs.promises.writeFile
 		WindowFor       optional, ( ) => the BrowserWindow a dialog belongs to
+		OpenPath        async ( Path ) => { Path, Ui } or null, for OpenFile, NewFile and OpenPath
+		Skeleton        async ( Name ) => a new file's text, for NewFile
+		FolderFor       optional, ( ) => the folder a new file is suggested in
+		OpenTerminal, RecentList, UiFor: see each capability below
 */
 
 function NewHost( Options )
@@ -142,6 +147,70 @@ function NewHost( Options )
 
 
 	//---------------------------------------------------------------------
+	/*
+		A new file: asks where it goes, writes the skeleton `jsonx new file` prints there under the name the
+		person typed, and opens it as any other file is opened. Cancelled is null.
+
+		***The skeleton is jsonx-cli's***, asked for through its command line (decision 10), so a new file from
+		the desktop is the one the readme tells a command line user to start from, and validates the same way.
+		A file which could not be made says so in front of the person, as opening does.
+	*/
+
+	if ( options.Dialog && typeof options.OpenPath === 'function' && typeof options.Skeleton === 'function' )
+	{
+		host.NewFile = async function ()
+		{
+			let folder = ( typeof options.FolderFor === 'function' ) ? options.FolderFor() : null;
+			let request = {
+				title: 'New jsonx file',
+				defaultPath: folder ? LIB_PATH.join( folder, NEW_FILE ) : NEW_FILE,
+				filters: [
+					{ name: 'jsonx files', extensions: [ 'jsonx' ] },
+				],
+			};
+			let window_ = ( typeof options.WindowFor === 'function' ) ? options.WindowFor() : null;
+			let chosen = null;
+			try
+			{
+				chosen = window_
+					? await options.Dialog.showSaveDialog( window_, request )
+					: await options.Dialog.showSaveDialog( request );
+			}
+			catch ( error ) { return null; }
+			if ( !chosen || chosen.canceled || !chosen.filePath ) { return null; }
+
+			let path = chosen.filePath;
+			if ( LIB_PATH.extname( path ) === '' ) { path += '.jsonx'; }
+			try
+			{
+				let text = await options.Skeleton( FileName( path ) );
+				let write = options.WriteFile || require( 'fs' ).promises.writeFile;
+				await write( path, text );
+			}
+			catch ( error )
+			{
+				let message = {
+					type: 'error',
+					title: 'jsonx',
+					message: 'Cannot make ' + LIB_PATH.basename( path ) + '.',
+					detail: String( error.Stderr || error.message || '' ).trim(),
+				};
+				try
+				{
+					if ( window_ ) { await options.Dialog.showMessageBox( window_, message ); }
+					else { await options.Dialog.showMessageBox( message ); }
+				}
+				catch ( ignored ) { /* nothing more to say it with */ }
+				return null;
+			}
+
+			try { return await options.OpenPath( path ); }
+			catch ( error ) { return null; }
+		};
+	}
+
+
+	//---------------------------------------------------------------------
 	// Opens a file the host already knows of: one from RecentFiles, or one the menu names.
 
 	if ( typeof options.OpenPath === 'function' )
@@ -232,9 +301,22 @@ function SuggestedName( FilePath, Ending )
 
 
 //---------------------------------------------------------------------
+// The Name a new file carries: its file name without the ending, as the person typed it.
+
+function FileName( FilePath )
+{
+	let base = LIB_PATH.basename( String( FilePath || '' ) );
+	let dot = base.lastIndexOf( '.' );
+	if ( dot > 0 ) { base = base.slice( 0, dot ); }
+	return base;
+}
+
+
+//---------------------------------------------------------------------
 module.exports = {
 	KIND: KIND,
 	NewHost: NewHost,
+	FileName: FileName,
 	TerminalUrl: TerminalUrl,
 	SuggestedName: SuggestedName,
 };

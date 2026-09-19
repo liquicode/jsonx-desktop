@@ -267,7 +267,40 @@ function NewProcesses( Options )
 
 
 	//---------------------------------------------------------------------
+	/*
+		A new file's text: what `jsonx new file --name <Name>` writes to standard output, the skeleton jsonx-cli's
+		readme starts a file from. A short-lived child, not a served one - nothing is held open for it.
+	*/
+
+	function Skeleton( Name )
+	{
+		return new Promise( function ( Resolve, Reject )
+		{
+			let child = options.Spawn( options.ExecPath, [ bin, 'new', 'file', '--name', String( Name ) ], {
+				env: Object.assign( {}, options.Env || process.env, { ELECTRON_RUN_AS_NODE: '1' } ),
+				stdio: [ 'ignore', 'pipe', 'pipe' ],
+				windowsHide: true,
+			} );
+			let stdout = '';
+			let stderr = '';
+			child.stdout.setEncoding( 'utf8' );
+			child.stderr.setEncoding( 'utf8' );
+			child.stdout.on( 'data', function ( Chunk ) { stdout += Chunk; } );
+			child.stderr.on( 'data', function ( Chunk ) { stderr += Chunk; } );
+			child.once( 'error', function ( Error_ ) { Reject( new ProcessError( 'jsonx new could not start: ' + Error_.message, 1, stderr ) ); } );
+			child.once( 'close', function ( Code )
+			{
+				let code = ( typeof Code === 'number' ) ? Code : 1;
+				if ( code !== 0 ) { Reject( new ProcessError( 'jsonx new stopped with exit ' + code + '.', code, stderr ) ); return; }
+				Resolve( stdout );
+			} );
+		} );
+	}
+
+
+	//---------------------------------------------------------------------
 	processes.Bin = bin;
+	processes.Skeleton = Skeleton;
 	processes.Start = Start;
 	processes.Stop = Stop;
 	processes.StopAll = StopAll;

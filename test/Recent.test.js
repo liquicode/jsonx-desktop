@@ -123,10 +123,10 @@ describe( 'The menu', function ()
 	{
 		let template = MenuTemplate.MenuTemplate( { Recent: [ { Path: 'C:\\season\\a.jsonx' } ], Version: '0.1.0' } );
 		let named = MenuTemplate.ActionsNamed( template );
-		LIB_ASSERT.deepStrictEqual( named, [ 'OpenFile', 'OpenPath', 'ClearRecent', 'Quit', 'OpenHomepage', 'About' ] );
+		LIB_ASSERT.deepStrictEqual( named, [ 'NewFile', 'OpenFile', 'OpenPath', 'ClearRecent', 'Quit', 'OpenHomepage', 'About' ] );
 
 		// What main.js wires must cover every one of them.
-		let actions = { OpenFile: function () {}, OpenPath: function () {}, ClearRecent: function () {}, Quit: function () {}, OpenHomepage: function () {}, About: function () {} };
+		let actions = { NewFile: function () {}, OpenFile: function () {}, OpenPath: function () {}, ClearRecent: function () {}, Quit: function () {}, OpenHomepage: function () {}, About: function () {} };
 		named.forEach( function ( Name ) { LIB_ASSERT.strictEqual( typeof actions[ Name ], 'function', Name ); } );
 	} );
 

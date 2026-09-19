@@ -17,6 +17,7 @@
 		h1 { font-size: 1.5rem; margin: 0 0 .25rem; }
 		p.about { margin: 0 0 2rem; opacity: .7; }
 		button.open { font: inherit; padding: .5rem 1rem; border: 1px solid currentColor; border-radius: .375rem; background: transparent; color: inherit; cursor: pointer; }
+		button.open + button.open { margin-left: .5rem; }
 		button.open:hover { background: color-mix( in srgb, CanvasText 10%, transparent ); }
 		h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; opacity: .6; margin: 2.5rem 0 .5rem; }
 		ul { list-style: none; margin: 0; padding: 0; }
@@ -32,7 +33,8 @@
 <body>
 	<main>
 		<h1>jsonx</h1>
-		<p class="about">Open a jsonx file to work on it.</p>
+		<p class="about">Start a new jsonx file, or open one to work on it.</p>
+		<button type="button" class="open" id="new">New file...</button>
 		<button type="button" class="open" id="open">Open file...</button>
 
 		<h2>Recent</h2>
@@ -85,6 +87,14 @@
 				return;
 			}
 
+			function new_file()
+			{
+				if ( !host || !host.NewFile ) { return; }
+				host.NewFile();
+				return;
+			}
+
+			document.getElementById( 'new' ).addEventListener( 'click', new_file );
 			document.getElementById( 'open' ).addEventListener( 'click', open_file );
 			if ( host && host.RecentFiles ) { host.RecentFiles().then( show_recent ); }
 			else { document.getElementById( 'none' ).hidden = false; }

@@ -21,6 +21,10 @@ Windows installers are built today. macOS and Linux are not.
 Double click a `.jsonx` file, or start jsonx and use *Open file*. Started with no file, it shows the
 files you opened lately.
 
+*New file* (*File > New...*, Ctrl+N) asks where to save a new `.jsonx` file and opens it. The file is the
+starter `jsonx new file` writes, named after what you typed: two data sources, a few objects and a
+trigger, ready to run and to change.
+
 ***Each open file is its own window***, and each window runs its own `jsonx` process holding that file.
 So two files never share anything, and closing a window closes the file it holds. Opening a file which is
 already open brings its window forward.
@@ -32,8 +36,9 @@ the list. *Clear* forgets them.
 ## The window
 
 The window is the [Web UI](https://github.com/liquicode/jsonx-cli#the-web-ui): Inventory, Input, Log and
-Data Rows, with the same keys, themes and text sizes. Two buttons in its header are the desktop's:
+Data Rows, with the same keys, themes and text sizes. Three buttons in its header are the desktop's:
 
+- ***New file*** makes a new `.jsonx` file, suggested beside this one, and opens it in its own window.
 - ***Open file*** asks for a `.jsonx` file and opens it in its own window.
 - ***Terminal*** opens the [jsonx terminal](https://github.com/liquicode/jsonx-cli#the-jsonx-terminal) on
   this file's process, in a window beside it. What you type there and what the window shows are the same

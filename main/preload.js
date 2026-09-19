@@ -39,7 +39,7 @@ function NewDesktopHost( Invoke, Names )
 			let args = Array.prototype.slice.call( arguments );
 			return Promise.resolve( Invoke( Name, args ) ).then(
 				function ( Answer ) { return Answer; },
-				function ( Error_ ) { return ( Name === 'OpenFile' || Name === 'RecentFiles' ) ? null : false; } );
+				function ( Error_ ) { return ( Name === 'OpenFile' || Name === 'NewFile' || Name === 'RecentFiles' ) ? null : false; } );
 		};
 	}
 
